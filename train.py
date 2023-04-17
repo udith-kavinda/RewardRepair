@@ -159,6 +159,7 @@ def validate_by_compiler(bugid, preds):
 def syntrain(epoch, tokenizer, model, device, loader, optimizer):
     model.train()
     countInt = 0
+    print(len(loader))
     for _,data in enumerate(loader, 0):
     
         y = data['target_ids'].to(device, dtype = torch.long)
@@ -174,6 +175,9 @@ def syntrain(epoch, tokenizer, model, device, loader, optimizer):
 
         if _%1000 ==0:
             print(f'Syntatic Train Epoch: {epoch}, Loss:  {loss.item()}')
+            print(_)
+            model.save_pretrained(SAVE_MODEL)
+            tokenizer.save_pretrained(SAVE_MODEL)
 
         # we also save the model here in case of an accident during training
         if _%10000 ==0:
@@ -243,7 +247,7 @@ def syntactic(epoch,syn_train_data_path):
     
 
     # tokenzier for encoding the text
-    if epoch == 0 and 'CoCoNut' in syn_train_data_path:
+    if epoch == 0 and 'pretrain' in syn_train_data_path:
         model = T5ForConditionalGeneration.from_pretrained('t5-base', output_hidden_states=True)    
         tokenizer = T5Tokenizer.from_pretrained('t5-base',truncation=True)
         tokenizer.add_tokens(['{', '}','<','^','>=','<=','==','buggy:','context:'])
@@ -311,10 +315,12 @@ if __name__ == '__main__':
     gc.collect()
     torch.cuda.empty_cache()
     # This is a  small dataset to try
-    syn_train_data_path_1= './data/CoCoNut.csv'
+    # syn_train_data_path_1= './data/CoCoNut.csv'
+    syn_train_data_path_1= './data/pretrain.csv'
     syn_train_data_path_2= './data/MegaDiff-CodRep.csv'
     semantic_train_data_path= 'Bears_Training/BearsTraining.csv'
     SAVE_MODEL='./model/RewardRepair'
+    SAVE_MODEL_GOOGLE_DRIVE='../drive/MyDrive/Colab Notebooks/APR tools/RewardRepair/model/RewardRepair'
     rootPath='/your/path/'
     TRAIN_BATCH_SIZE = 20   
     TRAIN_EPOCHS = 15      # number of epochs to train 
@@ -328,7 +334,7 @@ if __name__ == '__main__':
         syntactic(epoch,syn_train_data_path_1)
     
     #we train the syntactic training and semantic training
-    for epoch in range(0,TRAIN_EPOCHS):
-        syntactic(epoch,syn_train_data_path_2)
-        if  (epoch>5 and epoch % 3 == 0) or epoch == TRAIN_EPOCHS-1:
-            semantic(epoch)
+    # for epoch in range(0,TRAIN_EPOCHS):
+    #     syntactic(epoch,syn_train_data_path_2)
+    #     if  (epoch>5 and epoch % 3 == 0) or epoch == TRAIN_EPOCHS-1:
+    #         semantic(epoch)
