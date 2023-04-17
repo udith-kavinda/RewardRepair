@@ -322,7 +322,7 @@ if __name__ == '__main__':
     SAVE_MODEL='./model/RewardRepair'
     SAVE_MODEL_GOOGLE_DRIVE='../drive/MyDrive/Colab Notebooks/APR tools/RewardRepair/model/RewardRepair'
     rootPath='/your/path/'
-    TRAIN_BATCH_SIZE = 20   
+    TRAIN_BATCH_SIZE = 5   
     TRAIN_EPOCHS = 15      # number of epochs to train 
     LEARNING_RATE = 1e-4    # learning rate
     SEED = 42               # random seed (default: 42)
