@@ -4,9 +4,7 @@ import os
 import subprocess as sp
 
 def getResults(bug_no, preds, root, bug_details):
-    print('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', bug_details)
-    test_bugs = json.load(open('../bugsPHP/bug_metadata.json', 'r'))
-    print('bbbbbbbbbbbbbbbbbbbbbbb', len(test_bugs))
+    test_bugs = json.load(open('./bugsPHP/bug_metadata.json', 'r'))
 
     bug_data = bug_details[0].split('_')
     repo_owner = bug_data[0]
@@ -17,20 +15,13 @@ def getResults(bug_no, preds, root, bug_details):
 
     filtered_bug = list(filter(lambda x: (x['repo_name'] == repo_name and x['bug_no'] == int(bug_no)), test_bugs))
     bug = filtered_bug[0]
-    print (test_bugs[0])
 
     print(bug)
 
-    # bug = test_bugs[bug_no]
-    # repo_name = bug['repo_name']
-    # repo_owner = bug['repo_owner']
-    # bug_no = bug['bug_no']
-
-    # generated_bugs = _.find(bug_details, lambda x:x['repo_name'] == project and x['bug_no'] == bug['bug_no'])
-    generated_bug_lines = preds
+    # generated_bug_lines = preds
+    generated_bug_lines = "'from_now' => static function ($time) {\n switch ($time) {\n case '1 godzina': \n return 'za 1 godzinę';\n case '1 minuta':\n return 'za 1 minutę';\n case '1 sekunda':\n return 'za 1 sekundę';\n default:\n return 'za $time';\n }\n },"
 
     changed_file_paths = bug['changed_file_paths']
-    changed_test_file_paths = bug['changed_test_file_paths']
 
     print(' =================================================================== ' , repo_name,  'bug_no', bug_no)
     sp.Popen(['python3', 'main.py', '-p', repo_owner+'--'+repo_name, '-b', str(bug_no), '-t', 'checkout', '-v', 'buggy', '-o', '/content/tmp/'], 
@@ -38,8 +29,6 @@ def getResults(bug_no, preds, root, bug_details):
 
     sp.Popen(['python3', 'main.py', '-p', repo_owner+'--'+repo_name, '-b', str(bug_no), '-t', 'install', '-v', 'buggy', '-o', '/content/tmp/'], 
                 cwd="/content/RewardRepair/bugsPHP/", universal_newlines=True, stdout=sp.PIPE, stderr=sp.PIPE).communicate()
-
-    # all_bug_data = []
 
 
     all_changing_file_lines = []
@@ -107,9 +96,12 @@ def getResults(bug_no, preds, root, bug_details):
         # print(index, generated_bug_lines['replacing_patch'])
 
 
-    all_test = sp.Popen(['python3', 'main.py', '-p', repo_owner+'--'+repo_name, '-b', str(bug_no), '-t', 'test', '-v', 'buggy', '-o', '/content/tmp/'], 
+    all_test_result = sp.Popen(['python3', 'main.py', '-p', repo_owner+'--'+repo_name, '-b', str(bug_no), '-t', 'test', '-v', 'buggy', '-o', '/content/tmp/'], 
                                     cwd="/content/RewardRepair/bugsPHP/", universal_newlines=True, stdout=sp.PIPE, stderr=sp.PIPE).communicate()
-    all_test =  re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?][ -/][@-~])').sub('', all_test[0])
+    all_test_result =  re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?][ -/][@-~])').sub('', all_test_result[0])
+
+    all_test = all_test_result.split('\n')
+    print(all_test)
 
     execResult = ''
     
@@ -118,7 +110,7 @@ def getResults(bug_no, preds, root, bug_details):
         print('COMPILATION ERROR')
          
     # Not plausible        
-    elif ('ERRORS!' in all_test) and ('FAILURES!' in all_test) and ('OK' not in all_test):
+    elif (('ERRORS!' in all_test) or ('FAILURES!' in all_test)) and ('OK' not in all_test):
         execResult = 'successcompile'
         print('success compile' )        
 
@@ -127,6 +119,7 @@ def getResults(bug_no, preds, root, bug_details):
         execResult = 'passHumanTest'
         print('Plausible!!')    
 
+    print(execResult)
     return execResult
             
 
