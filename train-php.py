@@ -8,7 +8,7 @@ from torch import cuda
 import gc
 import warnings
 import loader
-import BearDiscriminator
+import BugsPHPDiscriminator
 import torch.autograd as autograd
 
 
@@ -61,6 +61,7 @@ def semantic_training(generator, gen_opt, gen_tokenizer, adv_loader, device,epoc
         ids = data['source_ids'].to(device, dtype = torch.long)
         mask = data['source_mask'].to(device, dtype = torch.long)
         bugid = data['bugid'].to(device, dtype = torch.long)
+        bug = data['bug']
         print(f'bugid: {bugid}')
         
                 
@@ -95,7 +96,7 @@ def semantic_training(generator, gen_opt, gen_tokenizer, adv_loader, device,epoc
         if 'same' in identity_reward:
             reward = autograd.Variable(torch.FloatTensor([1.4]))
         else:            
-            reward = validate_by_compiler(bugid, predstr)
+            reward = validate_by_compiler(bugid, predstr, bug)
         
         print(f'reward: {reward}')
   
@@ -136,9 +137,9 @@ def identity_discriminator(buggy, predstr):
       
        
     
-def validate_by_compiler(bugid, preds):
+def validate_by_compiler(bugid, preds, bug):
     R = 0.2
-    result = BearDiscriminator.getResults(bugid.item(), preds, rootPath)
+    result = BugsPHPDiscriminator.getResults(bugid.item(), preds, rootPath, bug)
     print(f'result: {result}')
     if 'failcompile' in result:
         rewardValue=1+R
@@ -216,7 +217,7 @@ def getGeneratorDataLoader(filepatch,tokenizer,batchsize):
     df = pd.read_csv(filepatch,encoding='latin-1',delimiter='\t')
     print(df.head(1))
     
-    df = df[['bugid','buggy','patch']]
+    df = df[['bugid','bug', 'buggy','patch']]
 
     params = {
         'batch_size': batchsize,
@@ -224,7 +225,7 @@ def getGeneratorDataLoader(filepatch,tokenizer,batchsize):
         'num_workers': 0
         }
 
-    dataset=df.sample(frac=1.0, random_state = SEED).reset_index(drop=True)
+    dataset=df.reset_index(drop=True)
     target_set = loader.GeneratorDataset(dataset, tokenizer, MAX_LEN, PATCH_LEN)
     target_loader = DataLoader(target_set, **params)
     return target_loader
@@ -318,12 +319,13 @@ if __name__ == '__main__':
     # syn_train_data_path_1= './data/CoCoNut.csv'
     syn_train_data_path_1= './data/pretrain.csv'
     syn_train_data_path_2= './data/MegaDiff-CodRep.csv'
-    semantic_train_data_path= 'Bears_Training/BearsTraining.csv'
+    # semantic_train_data_path= 'Bears_Training/BearsTraining.csv'
+    semantic_train_data_path = 'BugsPHP_Training/test.csv'
     SAVE_MODEL='./model/RewardRepair'
     SAVE_MODEL_GOOGLE_DRIVE='../drive/MyDrive/Colab Notebooks/APR tools/RewardRepair/model/RewardRepair'
     rootPath='/your/path/'
     TRAIN_BATCH_SIZE = 8   
-    TRAIN_EPOCHS = 10      # number of epochs to train 
+    TRAIN_EPOCHS = 2      # number of epochs to train 
     LEARNING_RATE = 1e-4    # learning rate
     SEED = 42               # random seed (default: 42)
     MAX_LEN = 512
@@ -331,8 +333,8 @@ if __name__ == '__main__':
     
     #We train the CoCoNut dataset
     for epoch in range(0,TRAIN_EPOCHS):
-        semantic(epoch)
         # syntactic(epoch,syn_train_data_path_1)
+        semantic(epoch)
     
     #we train the syntactic training and semantic training
     # for epoch in range(0,TRAIN_EPOCHS):

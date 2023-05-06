@@ -61,7 +61,7 @@ def getBugjarName(bugIndex):
 
         
 def test(epoch, tokenizer, model, device, loader):
-    return_sequences = 200
+    return_sequences = 100
     model.eval()
 
     with torch.no_grad():
@@ -79,7 +79,7 @@ def test(epoch, tokenizer, model, device, loader):
             generated_ids = model.generate(
                 input_ids = ids,
                 attention_mask = mask, 
-                max_length=100, 
+                max_length=1024, 
                 num_beams=return_sequences,
                 length_penalty=1.0, 
                 early_stopping = True,
@@ -97,7 +97,7 @@ def test(epoch, tokenizer, model, device, loader):
                 for i in range(0,return_sequences):
                     predstr=preds[i]
                     predstr=predstr.replace('> =','>=').replace('< =','<=').replace('= =','==').replace('! =','!=')
-                    filewriter.writerow([bugid.item(), predstr])
+                    filewriter.writerow([bugid.item(), data['bug'][0] , predstr])
 
 
 
@@ -109,9 +109,9 @@ def main():
     TRAIN_BATCH_SIZE =20    # input batch size for training (default: 64)
     VAL_EPOCHS = 1 
     LEARNING_RATE = 1e-4    # learning rate (default: 0.01)
-    SEED = 42               # random seed (default: 42)
+    SEED = 0               # random seed (default: 42)
     MAX_LEN = 512
-    SUMMARY_LEN = 64 
+    SUMMARY_LEN = 512 
 
     # Set random seeds and deterministic pytorch for reproducibility
     torch.manual_seed(SEED) # pytorch random seed
@@ -129,13 +129,13 @@ def main():
     model = model.to(device)
 
 
-    test_df = pd.read_csv('./data/D4JPairs.csv',encoding='latin-1',delimiter='\t')
+    test_df = pd.read_csv('./data/test.csv',encoding='latin-1',delimiter='\t')
     print(test_df.head())
-    test_df = test_df[['bugid','buggy','patch']]
+    test_df = test_df[['bugid', 'bug','buggy','patch']]
     print(test_df.head())
 
     
-    test_dataset=test_df.sample(frac=1.0, random_state = SEED).reset_index(drop=True)
+    test_dataset=test_df.reset_index(drop=True)
 
 
     print("TEST Dataset: {}".format(test_dataset.shape))

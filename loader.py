@@ -11,6 +11,7 @@ class GeneratorDataset(Dataset):
         self.bugid = self.data.bugid
         self.buggy = self.data.buggy
         self.patch = self.data.patch
+        self.bug = self.data.bug
 
     def __len__(self):
         return len(self.patch)
@@ -35,7 +36,8 @@ class GeneratorDataset(Dataset):
             'source_ids': source_ids.to(dtype=torch.long), 
             'source_mask': source_mask.to(dtype=torch.long), 
             'target_ids': target_ids.to(dtype=torch.long),
-            'target_ids_y': target_ids.to(dtype=torch.long)
+            'target_ids_y': target_ids.to(dtype=torch.long),
+            'bug': self.bug[index]
         }
 
 
