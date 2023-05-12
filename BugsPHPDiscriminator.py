@@ -16,26 +16,25 @@ def getResults(bug_no, preds, root, bug_details):
     filtered_bug = list(filter(lambda x: (x['repo_name'] == repo_name and x['bug_no'] == int(bug_no)), test_bugs))
     bug = filtered_bug[0]
 
-    print(bug)
+    # print(bug)
 
-    # generated_bug_lines = preds
-    generated_bug_lines = "'from_now' => static function ($time) {\n switch ($time) {\n case '1 godzina': \n return 'za 1 godzinę';\n case '1 minuta':\n return 'za 1 minutę';\n case '1 sekunda':\n return 'za 1 sekundę';\n default:\n return 'za $time';\n }\n },"
+    generated_bug_lines = preds
 
     changed_file_paths = bug['changed_file_paths']
 
     print(' =================================================================== ' , repo_name,  'bug_no', bug_no)
-    sp.Popen(['python3', 'main.py', '-p', repo_owner+'--'+repo_name, '-b', str(bug_no), '-t', 'checkout', '-v', 'buggy', '-o', '/content/tmp/'], 
-                cwd="/content/RewardRepair/bugsPHP/").communicate()
+    sp.Popen(['python3', 'main.py', '-p', repo_owner+'--'+repo_name, '-b', str(bug_no), '-t', 'checkout', '-v', 'buggy', '-o', '/tmp/'], 
+                cwd="/RewardRepair/bugsPHP/").communicate()
 
-    sp.Popen(['python3', 'main.py', '-p', repo_owner+'--'+repo_name, '-b', str(bug_no), '-t', 'install', '-v', 'buggy', '-o', '/content/tmp/'], 
-                cwd="/content/RewardRepair/bugsPHP/", universal_newlines=True, stdout=sp.PIPE, stderr=sp.PIPE).communicate()
+    sp.Popen(['python3', 'main.py', '-p', repo_owner+'--'+repo_name, '-b', str(bug_no), '-t', 'install', '-v', 'buggy', '-o', '/tmp/'], 
+                cwd="/RewardRepair/bugsPHP/", universal_newlines=True, stdout=sp.PIPE, stderr=sp.PIPE).communicate()
 
 
     all_changing_file_lines = []
 
     for i in range(len(changed_file_paths)):
         path = changed_file_paths[i]
-        file_path = '/content/tmp/' + repo_name + '/' + path
+        file_path = '/tmp/' + repo_name + '/' + path
 
         f = open(file_path, "r")
         all_file_lines = f.readlines()
@@ -95,29 +94,43 @@ def getResults(bug_no, preds, root, bug_details):
 
         # print(index, generated_bug_lines['replacing_patch'])
 
+    failed_test_results = sp.Popen(['python3', 'main.py', '-p', repo_owner+'--'+repo_name, '-b', str(bug_no), '-t', 'failing-test-only', '-v', 'buggy', '-o', '/tmp/'], 
+                            cwd="RewardRepair/bugsPHP/", universal_newlines=True, stdout=sp.PIPE, stderr=sp.PIPE).communicate()
 
-    all_test_result = sp.Popen(['python3', 'main.py', '-p', repo_owner+'--'+repo_name, '-b', str(bug_no), '-t', 'test', '-v', 'buggy', '-o', '/content/tmp/'], 
-                                    cwd="/content/RewardRepair/bugsPHP/", universal_newlines=True, stdout=sp.PIPE, stderr=sp.PIPE).communicate()
-    all_test_result =  re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?][ -/][@-~])').sub('', all_test_result[0])
+    failed_test_results = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?][ -/][@-~])').sub('', failed_test_results[0])
 
-    all_test = all_test_result.split('\n')
-    print(all_test)
+    failed_test = failed_test_results.split('\n'),
+
+    failed_test_status = 'success' if(('ERRORS!' not in failed_test) and ('FAILURES!' not in failed_test) and ('OK' in failed_test)) else 'failed'
+
+
+    all_test = ''
+    if(failed_test_status == 'success'):
+        all_test_result = sp.Popen(['python3', 'main.py', '-p', repo_owner+'--'+repo_name, '-b', str(bug_no), '-t', 'test', '-v', 'buggy', '-o', '/tmp/'], 
+                                        cwd="RewardRepair/bugsPHP/", universal_newlines=True, stdout=sp.PIPE, stderr=sp.PIPE).communicate()
+        all_test_result =  re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?][ -/][@-~])').sub('', all_test_result[0])
+
+        all_test = all_test_result.split('\n')
+    # print(all_test)
 
     execResult = ''
     
-    if ('ERRORS!' not in all_test) and ('FAILURES!' not in all_test) and ('OK' not in all_test):
-        execResult = 'failcompile'
-        print('COMPILATION ERROR')
-         
-    # Not plausible        
-    elif (('ERRORS!' in all_test) or ('FAILURES!' in all_test)) and ('OK' not in all_test):
-        execResult = 'successcompile'
-        print('success compile' )        
+    if ('ERRORS!' not in failed_test) and ('FAILURES!' not in failed_test) and ('OK' not in failed_test):
+        execResult = 'noTestResults'
+        print('No Test Results')
+           
+    elif ('ERRORS!' in failed_test) or ('FAILURES!' in failed_test):
+        execResult = 'failedFailingTests'
+        print('Failed Failing Test Cases' ) 
 
-    # plausible
-    elif ('ERRORS!' not in all_test) and ('FAILURES!' not in all_test) and ('OK' in all_test):
-        execResult = 'passHumanTest'
-        print('Plausible!!')    
+    elif ('ERRORS!' not in failed_test) and ('FAILURES!' not in failed_test) and ('OK' in failed_test):
+        execResult = 'passedFailingTests'
+        print('Pass Failing Test Cases' )   
+
+        # plausible
+        if ('ERRORS!' not in all_test) and ('FAILURES!' not in all_test) and ('OK' in all_test):
+            execResult = 'passAllTests'
+            print('Plausible!!')    
 
     print(execResult)
     return execResult

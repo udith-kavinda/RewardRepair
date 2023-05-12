@@ -141,13 +141,13 @@ def validate_by_compiler(bugid, preds, bug):
     R = 0.2
     result = BugsPHPDiscriminator.getResults(bugid.item(), preds, rootPath, bug)
     print(f'result: {result}')
-    if 'failcompile' in result:
+    if 'noTestResults' in result:
         rewardValue=1+R
-    elif 'successcompile' in result:
+    elif 'failedFailingTests' in result:
         rewardValue=1-R
-    elif 'passHumanTest' in result:
+    elif 'passedFailingTests' in result:
         rewardValue=1-R*2
-    elif 'passAllTest' in result:
+    elif 'passAllTests' in result:
         rewardValue=1-R*3
     else:
         rewardValue=1
@@ -249,9 +249,9 @@ def syntactic(epoch,syn_train_data_path):
 
     # tokenzier for encoding the text
     if epoch == 0 and 'pretrain' in syn_train_data_path:
-        model = T5ForConditionalGeneration.from_pretrained('t5-base', output_hidden_states=True)    
-        tokenizer = T5Tokenizer.from_pretrained('t5-base',truncation=True)
-        tokenizer.add_tokens(['{', '}','<','^','>=','<=','==','buggy:','context:'])
+        model = T5ForConditionalGeneration.from_pretrained(SAVE_MODEL, output_hidden_states=True)    
+        tokenizer = T5Tokenizer.from_pretrained(SAVE_MODEL,truncation=True)
+        tokenizer.add_tokens(['{', '}','<','^','>=','<=','==', '->', '::','buggy:','context:'])
 
     else:
         model = T5ForConditionalGeneration.from_pretrained(SAVE_MODEL, output_hidden_states=True)    
@@ -324,20 +324,20 @@ if __name__ == '__main__':
     SAVE_MODEL='./model/RewardRepair'
     SAVE_MODEL_GOOGLE_DRIVE='../drive/MyDrive/Colab Notebooks/APR tools/RewardRepair/model/RewardRepair'
     rootPath='/your/path/'
-    TRAIN_BATCH_SIZE = 8   
-    TRAIN_EPOCHS = 2      # number of epochs to train 
+    TRAIN_BATCH_SIZE = 10   
+    TRAIN_EPOCHS = 10      # number of epochs to train 
     LEARNING_RATE = 1e-4    # learning rate
     SEED = 42               # random seed (default: 42)
     MAX_LEN = 512
     PATCH_LEN = 100    
     
     #We train the CoCoNut dataset
-    for epoch in range(0,TRAIN_EPOCHS):
-        # syntactic(epoch,syn_train_data_path_1)
-        semantic(epoch)
+    # for epoch in range(0,TRAIN_EPOCHS):
+    #     # syntactic(epoch,syn_train_data_path_1)
+    #     semantic(epoch)
     
     #we train the syntactic training and semantic training
-    # for epoch in range(0,TRAIN_EPOCHS):
-    #     syntactic(epoch,syn_train_data_path_2)
-    #     if  (epoch>5 and epoch % 3 == 0) or epoch == TRAIN_EPOCHS-1:
-    #         semantic(epoch)
+    for epoch in range(0,TRAIN_EPOCHS):
+        syntactic(epoch,syn_train_data_path_2)
+        if  (epoch>4 and epoch % 2 == 1) or epoch == TRAIN_EPOCHS-1:
+            semantic(epoch)
