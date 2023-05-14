@@ -325,7 +325,7 @@ if __name__ == '__main__':
     SAVE_MODEL_GOOGLE_DRIVE='../drive/MyDrive/Colab Notebooks/APR tools/RewardRepair/model/RewardRepair'
     rootPath='/your/path/'
     TRAIN_BATCH_SIZE = 8   
-    TRAIN_EPOCHS = 2      # number of epochs to train 
+    TRAIN_EPOCHS = 5      # number of epochs to train 
     LEARNING_RATE = 1e-4    # learning rate
     SEED = 42               # random seed (default: 42)
     MAX_LEN = 512
@@ -337,7 +337,7 @@ if __name__ == '__main__':
     #     semantic(epoch)
     
     #we train the syntactic training and semantic training
-    for epoch in range(0,TRAIN_EPOCHS):
+    for epoch in range(2,TRAIN_EPOCHS):
         syntactic(epoch,syn_train_data_path_1)
         if  (epoch>4 and epoch % 2 == 1) or epoch == 9:
             semantic(epoch)
