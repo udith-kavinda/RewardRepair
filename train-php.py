@@ -337,7 +337,7 @@ if __name__ == '__main__':
     #     semantic(epoch)
     
     #we train the syntactic training and semantic training
-    for epoch in range(5,TRAIN_EPOCHS):
+    for epoch in range(7,TRAIN_EPOCHS):
         syntactic(epoch,syn_train_data_path_1)
         if  (epoch>4 and epoch % 2 == 1) or epoch == 9:
             semantic(epoch)
