@@ -11,7 +11,7 @@ def getResults(bug_no, preds, root, bug_details):
     repo_name = bug_data[1]
     bug_no = bug_data[3]
 
-    print(repo_name, bug_no)
+    print(repo_name, bug_no, os.getcwd())
 
     filtered_bug = list(filter(lambda x: (x['repo_name'] == repo_name and x['bug_no'] == int(bug_no)), test_bugs))
     bug = filtered_bug[0]
@@ -24,17 +24,17 @@ def getResults(bug_no, preds, root, bug_details):
 
     print(' =================================================================== ' , repo_name,  'bug_no', bug_no)
     sp.Popen(['python3', 'main.py', '-p', repo_owner+'--'+repo_name, '-b', str(bug_no), '-t', 'checkout', '-v', 'buggy', '-o', '/tmp'], 
-                cwd="/bugsPHP/").communicate()
+                cwd="./bugsPHP/").communicate()
 
     sp.Popen(['python3', 'main.py', '-p', repo_owner+'--'+repo_name, '-b', str(bug_no), '-t', 'install', '-v', 'buggy', '-o', '/tmp'], 
-                cwd="/bugsPHP/", universal_newlines=True, stdout=sp.PIPE, stderr=sp.PIPE).communicate()
+                cwd="./bugsPHP/", universal_newlines=True, stdout=sp.PIPE, stderr=sp.PIPE).communicate()
 
 
     all_changing_file_lines = []
 
     for i in range(len(changed_file_paths)):
         path = changed_file_paths[i]
-        file_path = '/tmp' + repo_name + '/' + path
+        file_path = '/tmp/' + repo_name + '/' + path
 
         f = open(file_path, "r")
         all_file_lines = f.readlines()
@@ -95,7 +95,7 @@ def getResults(bug_no, preds, root, bug_details):
         # print(index, generated_bug_lines['replacing_patch'])
 
     failed_test_results = sp.Popen(['python3', 'main.py', '-p', repo_owner+'--'+repo_name, '-b', str(bug_no), '-t', 'failing-test-only', '-v', 'buggy', '-o', '/tmp'], 
-                            cwd="/bugsPHP/", universal_newlines=True, stdout=sp.PIPE, stderr=sp.PIPE).communicate()
+                            cwd="./bugsPHP/", universal_newlines=True, stdout=sp.PIPE, stderr=sp.PIPE).communicate()
 
     failed_test_results = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?][ -/][@-~])').sub('', failed_test_results[0])
 
@@ -107,7 +107,7 @@ def getResults(bug_no, preds, root, bug_details):
     all_test = ''
     if(failed_test_status == 'success'):
         all_test_result = sp.Popen(['python3', 'main.py', '-p', repo_owner+'--'+repo_name, '-b', str(bug_no), '-t', 'test', '-v', 'buggy', '-o', '/tmp'], 
-                                        cwd="/bugsPHP/", universal_newlines=True, stdout=sp.PIPE, stderr=sp.PIPE).communicate()
+                                        cwd="./bugsPHP/", universal_newlines=True, stdout=sp.PIPE, stderr=sp.PIPE).communicate()
         all_test_result =  re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?][ -/][@-~])').sub('', all_test_result[0])
 
         all_test = all_test_result.split('\n')
