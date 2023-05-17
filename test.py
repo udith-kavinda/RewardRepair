@@ -73,9 +73,9 @@ def test(epoch, tokenizer, model, device, loader):
             mask = data['source_mask'].to(device, dtype = torch.long)
             bugid = data['bugid'].to(device, dtype = torch.long)
             
-            
-         
-            
+            if _%10==0:
+                print(_)
+       
             generated_ids = model.generate(
                 input_ids = ids,
                 attention_mask = mask, 
