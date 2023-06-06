@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import torch, csv
 import torch.nn.functional as F
+import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader, RandomSampler, SequentialSampler
 from transformers import T5Tokenizer, T5ForConditionalGeneration, T5Config
 from torch import cuda
@@ -10,7 +11,7 @@ import warnings
 import loader
 import BugsPHPDiscriminator
 import torch.autograd as autograd
-from .model_source.t5_for_multi_source import T5ForMultiSourceConditionalGeneration, CustomDatasetForMultiSource
+from model_source.t5_for_multi_source import T5ForMultiSourceConditionalGeneration, CustomDatasetForMultiSource
 
 
 class CustomDataset(Dataset):
@@ -20,33 +21,53 @@ class CustomDataset(Dataset):
         self.data = dataframe
         self.source_len = source_len
         self.summ_len = summ_len
-        self.buggy = self.data.buggy
-        self.patch = self.data.patch
+        # self.buggy = self.data.buggy
+        # self.patch = self.data.patch
+        self.text_data_1 = self.data.additional_info
+        self.text_data_2 = self.data.buggy
+        self.labels = self.data.patch
 
     def __len__(self):
-        return len(self.patch)
+        return len(self.text_data_1)
 
     def __getitem__(self, index):
-        buggy = str(self.buggy[index])
-        buggy = ' '.join(buggy.split())
+        text_1 = self.text_data_1[index]
+        text_2 = self.text_data_2[index]
+        label = self.labels[index]
 
-        patch = str(self.patch[index])
-        patch = ' '.join(patch.split())
+        # Tokenize text inputs
+        text_input_1 = self.tokenizer.batch_encode_plus([text_1], max_length= self.source_len, pad_to_max_length=True,return_tensors='pt')
+        text_input_2 = self.tokenizer.batch_encode_plus([text_2], max_length= self.source_len, pad_to_max_length=True,return_tensors='pt')
+        target = self.tokenizer.batch_encode_plus([label], max_length= self.summ_len, pad_to_max_length=True,return_tensors='pt')
 
-        source = self.tokenizer.batch_encode_plus([buggy], max_length= self.source_len,pad_to_max_length=True,return_tensors='pt')
-        target = self.tokenizer.batch_encode_plus([patch], max_length= self.summ_len, pad_to_max_length=True,return_tensors='pt')
+        input_ids_1 = text_input_1['input_ids'].squeeze()
+        attention_mask_1 = text_input_1['attention_mask'].squeeze()
+        input_ids_2 = text_input_2['input_ids'].squeeze()
+        attention_mask_2 = text_input_2['attention_mask'].squeeze()
 
-        source_ids = source['input_ids'].squeeze()
-        source_mask = source['attention_mask'].squeeze()
+        # print(input_ids_1, input_ids_2)
+
         target_ids = target['input_ids'].squeeze()
         target_mask = target['attention_mask'].squeeze()
 
+        # input_ids = torch.cat((input_ids_1, input_ids_2), dim=1)
+        # attention_mask = torch.cat((attention_mask_1, attention_mask_2), dim=1)
+
         return {
-            'source_ids': source_ids.to(dtype=torch.long), 
-            'source_mask': source_mask.to(dtype=torch.long), 
+            'input_ids_1': input_ids_1.to(dtype=torch.long), 
+            'attention_mask_1': attention_mask_1.to(dtype=torch.long), 
+            'input_ids_2': input_ids_2.to(dtype=torch.long), 
+            'attention_mask_2': attention_mask_2.to(dtype=torch.long), 
             'target_ids': target_ids.to(dtype=torch.long),
             'target_ids_y': target_ids.to(dtype=torch.long)
         }
+
+        # return {
+        #     'input_ids': input_ids.to(dtype=torch.long), 
+        #     'attention_mask': attention_mask.to(dtype=torch.long), 
+        #     'target_ids': target_ids.to(dtype=torch.long),
+        #     'target_ids_y': target_ids.to(dtype=torch.long)
+        # }
 
 
 def semantic_training(generator, gen_opt, gen_tokenizer, adv_loader, device,epoch):
@@ -63,7 +84,7 @@ def semantic_training(generator, gen_opt, gen_tokenizer, adv_loader, device,epoc
         mask = data['source_mask'].to(device, dtype = torch.long)
         bugid = data['bugid'].to(device, dtype = torch.long)
         bug = data['bug']
-        print(f'bugid: {bugid}')
+        # print(f'bugid: {bugid}')
         
                 
         bugcode = ids[0]
@@ -74,7 +95,7 @@ def semantic_training(generator, gen_opt, gen_tokenizer, adv_loader, device,epoc
             
         outputs = generator(input_ids = ids, attention_mask = mask, decoder_input_ids=y_ids, labels=lm_labels)
         loss = outputs[0]
-        print(f'original loss: {loss}')
+        # print(f'original loss: {loss}')
         lm_logits = outputs[1]
         output = F.log_softmax(lm_logits, -1)
         preds_seq = output.max(2)[1]
@@ -162,33 +183,49 @@ def syntrain(epoch, tokenizer, model, device, loader, optimizer):
     model.train()
     countInt = 0
     print(len(loader))
-    for _,data in enumerate(loader, 0):
+    for idx,data in enumerate(loader, 0):
+
+        # print(idx)
     
         y = data['target_ids'].to(device, dtype = torch.long)
         y_ids = y[:, :-1].contiguous()
         lm_labels = y[:, 1:].clone().detach()
         lm_labels[y[:, 1:] == tokenizer.pad_token_id] = -100
-        ids = data['source_ids'].to(device, dtype = torch.long)
-        mask = data['source_mask'].to(device, dtype = torch.long)
 
-        outputs = model(input_ids = ids, attention_mask = mask, decoder_input_ids=y_ids, labels=lm_labels)
+        input_ids_1 = data['input_ids_1'].to(device, dtype = torch.long)
+        attention_mask_1 = data['attention_mask_1'].to(device, dtype = torch.long)
+        input_ids_2 = data['input_ids_2'].to(device, dtype = torch.long)
+        attention_mask_2 = data['attention_mask_2'].to(device, dtype = torch.long)
+
+        input_ids = torch.cat((input_ids_1, input_ids_2), dim=1)
+        attention_mask = torch.cat((attention_mask_1, attention_mask_2), dim=1)
+
+        criterion = nn.BCEWithLogitsLoss()
+        optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+        
+        optimizer.zero_grad()
+        outputs = model(input_ids=input_ids, attention_mask=attention_mask, decoder_input_ids=y_ids, labels=lm_labels)
+        # outputs = model(input_ids=input_ids_2, attention_mask=attention_mask_2, decoder_input_ids=y_ids, labels=lm_labels)
+    
         loss = outputs[0]
+        loss.backward()
+        optimizer.step()
 
 
-        if _%1000 ==0:
+        if idx%1000 ==0:
             print(f'Syntatic Train Epoch: {epoch}, Loss:  {loss.item()}')
-            print(_)
+            print(idx)
             model.save_pretrained(SAVE_MODEL)
             tokenizer.save_pretrained(SAVE_MODEL)
 
         # we also save the model here in case of an accident during training
-        if _%10000 ==0:
+        if idx%10000 ==0:
             model.save_pretrained(SAVE_MODEL)
             tokenizer.save_pretrained(SAVE_MODEL)
 
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+        # optimizer.zero_grad()
+        # loss.backward()
+        # optimizer.step()
         
         
         
@@ -242,11 +279,12 @@ def syntactic(epoch,syn_train_data_path):
     torch.cuda.empty_cache()
     
     # Process data
-    df = pd.read_csv(syn_train_data_path,encoding='latin-1',delimiter='\t', header=0, error_bad_lines=False)
+    df = pd.read_csv(syn_train_data_path,encoding='latin-1',delimiter='\t', header=0, error_bad_lines=False).dropna()
     print(df.head())
     df = df[['bugid','buggy','additional_info','patch']]
     print(df.head())
-    
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # tokenzier for encoding the text
     if epoch == 0 and 'pretrain' in syn_train_data_path:
@@ -263,16 +301,17 @@ def syntactic(epoch,syn_train_data_path):
 
 
     # device = 'cuda' if cuda.is_available() else 'cpu'
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = model.to(device)
+    # model = model.to(device)
     
     # Creation of Dataset and Dataloader
     train_dataset=df.sample(frac=1.0, random_state = SEED).reset_index(drop=True)     
     print("TRAIN Dataset: {}".format(train_dataset.shape))
 
     # Creating the Training and Validation dataset for further creation of Dataloader
-    # training_set = CustomDataset(train_dataset, tokenizer, MAX_LEN, PATCH_LEN)
-    training_set = CustomDatasetForMultiSource(tokenizer, df[['additional_info']], df[['buggy']], df[['patch']])
+    training_set = CustomDataset(train_dataset, tokenizer, MAX_LEN, PATCH_LEN)
+    # training_set = CustomDatasetForMultiSource(tokenizer, train_dataset[['additional_info']], train_dataset[['buggy']], train_dataset[['patch']])
+    # dataloader = DataLoader(training_set, batch_size=5, shuffle=True)
+    # print("TRAIN Dataset: {}".format(training_set.shape))
 
     # Defining the parameters for creation of dataloaders
     train_params = {
@@ -281,7 +320,7 @@ def syntactic(epoch,syn_train_data_path):
         'num_workers': 2
         }    
 
-    # Creation of Dataloaders for testing and validation. 
+    # # Creation of Dataloaders for testing and validation. 
     training_loader = DataLoader(training_set, **train_params)
   
 
@@ -340,7 +379,7 @@ if __name__ == '__main__':
     #     semantic(epoch)
     
     #we train the syntactic training and semantic training
-    for epoch in range(5,TRAIN_EPOCHS):
+    for epoch in range(0,TRAIN_EPOCHS):
         syntactic(epoch,syn_train_data_path_1)
         # if  (epoch>4 and epoch % 2 == 1) or epoch == 9:
         #     semantic(epoch)
