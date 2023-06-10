@@ -304,7 +304,7 @@ def syntactic(epoch,syn_train_data_path):
     # model = model.to(device)
     
     # Creation of Dataset and Dataloader
-    train_dataset=df.sample(frac=1.0, random_state = SEED).reset_index(drop=True)     
+    train_dataset=df.reset_index(drop=True)     
     print("TRAIN Dataset: {}".format(train_dataset.shape))
 
     # Creating the Training and Validation dataset for further creation of Dataloader
@@ -316,7 +316,7 @@ def syntactic(epoch,syn_train_data_path):
     # Defining the parameters for creation of dataloaders
     train_params = {
         'batch_size': TRAIN_BATCH_SIZE,
-        'shuffle': True,
+        'shuffle': False,
         'num_workers': 2
         }    
 
