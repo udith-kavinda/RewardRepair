@@ -79,21 +79,29 @@ def semantic_training(generator, gen_opt, gen_tokenizer, adv_loader, device,epoc
         y_ids = y[:, :-1].contiguous()
         lm_labels = y[:, 1:].clone().detach()
         lm_labels[y[:, 1:] == gen_tokenizer.pad_token_id] = -100
+
+        input_ids_1 = data['input_ids_1'].to(device, dtype = torch.long)
+        attention_mask_1 = data['attention_mask_1'].to(device, dtype = torch.long)
+        input_ids_2 = data['input_ids_2'].to(device, dtype = torch.long)
+        attention_mask_2 = data['attention_mask_2'].to(device, dtype = torch.long)
+
+        input_ids = torch.cat((input_ids_1, input_ids_2), dim=1)
+        attention_mask = torch.cat((attention_mask_1, attention_mask_2), dim=1)
         
-        ids = data['source_ids'].to(device, dtype = torch.long)
-        mask = data['source_mask'].to(device, dtype = torch.long)
+        # ids = data['source_ids'].to(device, dtype = torch.long)
+        # mask = data['source_mask'].to(device, dtype = torch.long)
         bugid = data['bugid'].to(device, dtype = torch.long)
         bug = data['bug']
         # print(f'bugid: {bugid}')
         
                 
-        bugcode = ids[0]
+        bugcode = input_ids_1[0]
         end_index=getEndIndex(bugcode,32108) #2625 is the index for 'context',32108 is the index of 'context:'       
         bugcode = bugcode[3:end_index-1] #your index may be different!
         buggy = [gen_tokenizer.decode(bugcode, skip_special_tokens=True, clean_up_tokenization_spaces=True)]
            
             
-        outputs = generator(input_ids = ids, attention_mask = mask, decoder_input_ids=y_ids, labels=lm_labels)
+        outputs = generator(input_ids = input_ids, attention_mask = attention_mask, decoder_input_ids=y_ids, labels=lm_labels)
         loss = outputs[0]
         # print(f'original loss: {loss}')
         lm_logits = outputs[1]
@@ -255,16 +263,16 @@ def getGeneratorDataLoader(filepatch,tokenizer,batchsize):
     df = pd.read_csv(filepatch,encoding='latin-1',delimiter='\t')
     print(df.head(1))
     
-    df = df[['bugid','bug', 'buggy','patch']]
+    df = df[['bugid','bug', 'buggy', 'additional_info','patch']]
 
     params = {
         'batch_size': batchsize,
-        'shuffle': True,
+        'shuffle': False,
         'num_workers': 0
         }
 
     dataset=df.reset_index(drop=True)
-    target_set = loader.GeneratorDataset(dataset, tokenizer, MAX_LEN, PATCH_LEN)
+    target_set = loader.GeneratorDatasetForMultiSource(dataset, tokenizer, MAX_LEN, PATCH_LEN)
     target_loader = DataLoader(target_set, **params)
     return target_loader
         
