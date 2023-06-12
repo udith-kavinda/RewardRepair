@@ -53,7 +53,7 @@ class GeneratorDatasetForMultiSource(Dataset):
         self.bug = self.data.bug
 
     def __len__(self):
-        return len(self.patch)
+        return len(self.text_data_1)
 
     def __getitem__(self, index):
         text_1 = self.text_data_1[index]
