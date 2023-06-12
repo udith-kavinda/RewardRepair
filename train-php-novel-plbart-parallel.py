@@ -11,7 +11,7 @@ import warnings
 import loader
 import BugsPHPDiscriminator
 import torch.autograd as autograd
-from model_source.plbart_for_multi_source import PLBartForMultiSourceConditionalGeneration
+from model_source.plbart_for_multi_source_parallel import PLBartForMultiSourceParallelConditionalGeneration
 
 
 class CustomDataset(Dataset):
@@ -286,7 +286,7 @@ def syntactic(epoch,syn_train_data_path):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    model = PLBartForMultiSourceConditionalGeneration.from_pretrained(SAVE_MODEL).to(device)
+    model = PLBartForMultiSourceParallelConditionalGeneration.from_pretrained(SAVE_MODEL).to(device)
     tokenizer = PLBartTokenizer.from_pretrained(SAVE_MODEL, truncation=True)
 
     # tokenzier for encoding the text
@@ -332,7 +332,7 @@ def syntactic(epoch,syn_train_data_path):
         
 def semantic(epoch):   
     
-    gen = PLBartForMultiSourceConditionalGeneration.from_pretrained(SAVE_MODEL, output_hidden_states=True)    
+    gen = PLBartForMultiSourceParallelConditionalGeneration.from_pretrained(SAVE_MODEL, output_hidden_states=True)    
     gen_tokenizer = PLBartTokenizer.from_pretrained(SAVE_MODEL,truncation=True)
     gen = gen.to(device)   
     gen_optimizer = torch.optim.Adam(params = gen.parameters(), lr=LEARNING_RATE)
@@ -359,7 +359,7 @@ if __name__ == '__main__':
 
     syn_train_data_path_1= './data/pretrain.csv'
     semantic_train_data_path = 'BugsPHP_Training/test.csv'
-    SAVE_MODEL='./model/RewardRepair/plbart'
+    SAVE_MODEL='./model/RewardRepair/plbart-parallel'
     SAVE_MODEL_GOOGLE_DRIVE='../drive/MyDrive/Colab Notebooks/APR tools/RewardRepair/model/RewardRepair'
     rootPath='/your/path/'
     TRAIN_BATCH_SIZE = 8   

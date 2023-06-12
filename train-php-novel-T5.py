@@ -95,7 +95,7 @@ def semantic_training(generator, gen_opt, gen_tokenizer, adv_loader, device,epoc
         # print(f'bugid: {bugid}')
         
                 
-        bugcode = input_ids_1[0]
+        bugcode = input_ids_2[0]
         end_index=getEndIndex(bugcode,32108) #2625 is the index for 'context',32108 is the index of 'context:'       
         bugcode = bugcode[3:end_index-1] #your index may be different!
         buggy = [gen_tokenizer.decode(bugcode, skip_special_tokens=True, clean_up_tokenization_spaces=True)]
