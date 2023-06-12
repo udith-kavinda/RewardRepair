@@ -6,12 +6,13 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader, RandomSampler, SequentialSampler
 
 # Importing the T5 modules from huggingface/transformers
-from transformers import T5Tokenizer, T5ForConditionalGeneration
+from transformers import T5Tokenizer
 # # Setting up the device for GPU usage
 from torch import cuda
 import gc
 import warnings
 import loader
+from model_source.t5_for_multi_source import T5ForMultiSourceConditionalGeneration
 
 
     
@@ -69,17 +70,22 @@ def test(epoch, tokenizer, model, device, loader):
             gc.collect()
             torch.cuda.empty_cache()
             y = data['target_ids'].to(device, dtype = torch.long)
-            ids = data['source_ids'].to(device, dtype = torch.long)
-            mask = data['source_mask'].to(device, dtype = torch.long)
+            input_ids_1 = data['input_ids_1'].to(device, dtype = torch.long)
+            attention_mask_1 = data['attention_mask_1'].to(device, dtype = torch.long)
+            input_ids_2 = data['input_ids_1'].to(device, dtype = torch.long)
+            attention_mask_2 = data['attention_mask_1'].to(device, dtype = torch.long)
             bugid = data['bugid'].to(device, dtype = torch.long)
+
+            input_ids = torch.cat((input_ids_1, input_ids_2), dim=1)
+            attention_mask = torch.cat((attention_mask_1, attention_mask_2), dim=1)
             
             if _%10==0:
                 print(_)
        
             generated_ids = model.generate(
-                input_ids = ids,
-                attention_mask = mask, 
-                max_length=1024, 
+                input_ids = input_ids,
+                attention_mask = attention_mask, 
+                max_length=100, 
                 num_beams=return_sequences,
                 length_penalty=1.0, 
                 early_stopping = True,
@@ -121,17 +127,16 @@ def main():
 
     # tokenzier for encoding the text
     tokenizer = T5Tokenizer.from_pretrained('./model/RewardRepair')
-    tokenizer.add_tokens(['{', '}','<','^'])
+    # tokenizer.add_tokens(['{', '}','<','^'])
 
-    model = T5ForConditionalGeneration.from_pretrained('./model/RewardRepair')
     device = 'cuda' if cuda.is_available() else 'cpu'
+    model = T5ForMultiSourceConditionalGeneration.from_pretrained('./model/RewardRepair').to(device)
     # Further this model is sent to device (GPU/TPU) for using the hardware.
-    model = model.to(device)
 
 
     test_df = pd.read_csv('./data/test.csv',encoding='latin-1',delimiter='\t')
     print(test_df.head())
-    test_df = test_df[['bugid', 'bug','buggy','patch']]
+    test_df = test_df[['bugid', 'bug','buggy', 'additional_info','patch']]
     print(test_df.head())
 
     
@@ -142,7 +147,7 @@ def main():
 
 
 
-    test_set = loader.GeneratorDataset(test_dataset, tokenizer, MAX_LEN, SUMMARY_LEN)
+    test_set = loader.GeneratorDatasetForMultiSource(test_dataset, tokenizer, MAX_LEN, SUMMARY_LEN)
 
     
     test_params = {
