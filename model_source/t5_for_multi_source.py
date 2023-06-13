@@ -530,7 +530,7 @@ class T5ForMultiSourceConditionalGeneration(T5PreTrainedModel):
 
         if(encoder_outputs_1.past_key_values or encoder_outputs_1.attentions or encoder_outputs_1.cross_attentions or 
            encoder_outputs_2.past_key_values or encoder_outputs_2.attentions or encoder_outputs_2.cross_attentions):
-           raise ValueError("past_key_values=None, hidden_states=None, attentions=None, cross_attentions=None are defined")
+           raise ValueError("past_key_values=None, attentions=None, cross_attentions=None are defined")
 
 
         encoder_outputs = copy.deepcopy(encoder_outputs_2)
@@ -657,15 +657,20 @@ class T5ForMultiSourceConditionalGeneration(T5PreTrainedModel):
                 output_hidden_states=output_hidden_states,
                 return_dict=return_dict,
             )
+            if(encoder_outputs_1.past_key_values or encoder_outputs_1.attentions or encoder_outputs_1.cross_attentions or 
+               encoder_outputs_2.past_key_values or encoder_outputs_2.attentions or encoder_outputs_2.cross_attentions):
+               raise ValueError("past_key_values=None, attentions=None, cross_attentions=None are defined")
 
-            if(encoder_outputs_1.past_key_values or encoder_outputs_1.hidden_states or encoder_outputs_1.attentions or encoder_outputs_1.cross_attentions or 
-               encoder_outputs_2.past_key_values or encoder_outputs_2.hidden_states or encoder_outputs_2.attentions or encoder_outputs_2.cross_attentions):
-               raise ValueError("past_key_values=None, hidden_states=None, attentions=None, cross_attentions=None are defined")
+            encoder_outputs_hidden_states = None
+            if(encoder_outputs_1.hidden_states or encoder_outputs_1.hidden_states):
+                encoder_outputs_hidden_states = tuple(map(lambda x:torch.cat((encoder_outputs_1.hidden_states[x], encoder_outputs_2.hidden_states[x]), dim=1), 
+                                                             list(range(len(encoder_outputs_1.hidden_states)))))
+                
 
             encoder_outputs = BaseModelOutputWithPastAndCrossAttentions(
                 last_hidden_state=torch.cat((encoder_outputs_1.last_hidden_state, encoder_outputs_1.last_hidden_state), dim=1),
                 past_key_values=None, 
-                hidden_states=None, 
+                hidden_states=encoder_outputs_hidden_states, 
                 attentions=None, 
                 cross_attentions=None)
 
