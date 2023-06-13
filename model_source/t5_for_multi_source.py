@@ -527,14 +527,22 @@ class T5ForMultiSourceConditionalGeneration(T5PreTrainedModel):
         encoder_outputs_1 = self.encoder_1(**encoder_kwargs_1)
         encoder_outputs_2 = self.encoder_2(**encoder_kwargs_2)
 
-        encoder_outputs_last_hidden_state = torch.cat((encoder_outputs_1[0], encoder_outputs_2[0]), dim=1)
+
+        if(encoder_outputs_1.past_key_values or encoder_outputs_1.attentions or encoder_outputs_1.cross_attentions or 
+           encoder_outputs_2.past_key_values or encoder_outputs_2.attentions or encoder_outputs_2.cross_attentions):
+           raise ValueError("past_key_values=None, hidden_states=None, attentions=None, cross_attentions=None are defined")
+
+
         encoder_outputs = copy.deepcopy(encoder_outputs_2)
-        encoder_outputs['last_hidden_state'] = encoder_outputs_last_hidden_state
+        encoder_outputs['last_hidden_state'] = torch.cat((encoder_outputs_1.last_hidden_state, encoder_outputs_2.last_hidden_state), dim=1)
+        if(encoder_outputs_1.hidden_states):
+            encoder_outputs['hidden_states'] = tuple(map(lambda x:torch.cat((encoder_outputs_1.hidden_states[x], encoder_outputs_2.hidden_states[x]), dim=1), 
+                                               list(range(len(encoder_outputs_1.hidden_states)))))
 
         return encoder_outputs
 
-    def get_decoder(self):
-        return self.decoder
+    # def get_decoder(self):
+    #     return self.decoder
 
     # @add_start_docstrings_to_model_forward(T5_INPUTS_DOCSTRING)
     # @replace_return_docstrings(output_type=Seq2SeqLMOutput, config_class=_CONFIG_FOR_DOC)
@@ -649,8 +657,17 @@ class T5ForMultiSourceConditionalGeneration(T5PreTrainedModel):
                 output_hidden_states=output_hidden_states,
                 return_dict=return_dict,
             )
-            # print('encoder_outputs_1',encoder_outputs_1[0].shape)
-            # print('encoder_outputs_2',encoder_outputs_2[0].shape)
+
+            if(encoder_outputs_1.past_key_values or encoder_outputs_1.hidden_states or encoder_outputs_1.attentions or encoder_outputs_1.cross_attentions or 
+               encoder_outputs_2.past_key_values or encoder_outputs_2.hidden_states or encoder_outputs_2.attentions or encoder_outputs_2.cross_attentions):
+               raise ValueError("past_key_values=None, hidden_states=None, attentions=None, cross_attentions=None are defined")
+
+            encoder_outputs = BaseModelOutputWithPastAndCrossAttentions(
+                last_hidden_state=torch.cat((encoder_outputs_1.last_hidden_state, encoder_outputs_1.last_hidden_state), dim=1),
+                past_key_values=None, 
+                hidden_states=None, 
+                attentions=None, 
+                cross_attentions=None)
 
         elif return_dict and not isinstance(encoder_outputs_1, BaseModelOutput) and not isinstance(encoder_outputs_2, BaseModelOutput):
             encoder_outputs_1 = BaseModelOutput(
@@ -663,6 +680,7 @@ class T5ForMultiSourceConditionalGeneration(T5PreTrainedModel):
                 hidden_states=encoder_outputs_2[1] if len(encoder_outputs_2) > 1 else None,
                 attentions=encoder_outputs_2[2] if len(encoder_outputs_2) > 2 else None,
             )
+            # print('encoder_outputs_1',encoder_outputs_1)
         hidden_states_1 = encoder_outputs_1[0]
         hidden_states_2 = encoder_outputs_2[0]
         
@@ -730,8 +748,10 @@ class T5ForMultiSourceConditionalGeneration(T5PreTrainedModel):
             # TODO(thom): Add z_loss https://github.com/tensorflow/mesh/blob/fa19d69eafc9a482aff0b59ddd96b025c0cb207d/mesh_tensorflow/layers.py#L666
 
         if not return_dict:
-            output = (lm_logits,) + decoder_outputs[1:] + encoder_outputs_1 + encoder_outputs_2
+            output = (lm_logits,) + decoder_outputs[1:] + encoder_outputs
             return ((loss,) + output) if loss is not None else output
+
+
 
         return Seq2SeqLMOutput(
             loss=loss,
@@ -741,17 +761,9 @@ class T5ForMultiSourceConditionalGeneration(T5PreTrainedModel):
             decoder_attentions=decoder_outputs.attentions,
             cross_attentions=decoder_outputs.cross_attentions,
 
-            # encoder_last_hidden_state = None,
-            # encoder_hidden_states = None,
-            # encoder_attentions = None,
-
-            # encoder_last_hidden_state_1 = encoder_outputs_1.last_hidden_state,
-            # encoder_hidden_states_1 = encoder_outputs_1.hidden_states,
-            # encoder_attentions_1 = encoder_outputs_1.attentions,
-
-            # encoder_last_hidden_state_2 = encoder_outputs_2.last_hidden_state,
-            # encoder_hidden_states_2 = encoder_outputs_2.hidden_states,
-            # encoder_attentions_2 = encoder_outputs_2.attentions,
+            encoder_last_hidden_state = encoder_outputs.last_hidden_state,
+            encoder_hidden_states = encoder_outputs.hidden_states,
+            encoder_attentions = encoder_outputs.attentions
         )
 
     def prepare_inputs_for_generation(

@@ -23,8 +23,8 @@ class CustomDataset(Dataset):
         self.summ_len = summ_len
         # self.buggy = self.data.buggy
         # self.patch = self.data.patch
-        self.text_data_1 = self.data.additional_info
-        self.text_data_2 = self.data.buggy
+        self.text_data_1 = self.data.buggy
+        self.text_data_2 = self.data.additional_info
         self.labels = self.data.patch
 
     def __len__(self):
