@@ -488,7 +488,7 @@ class PLBartDecoder(PLBartPreTrainedModel):
             cross_attentions=all_cross_attentions,
         )
         
-
+        
 # @add_start_docstrings("The bare PLBART Model outputting raw hidden-states without any specific head on top.",PLBART_START_DOCSTRING)
 class PLBartModel(PLBartPreTrainedModel):
     _keys_to_ignore_on_load_missing = ["decoder.embed_tokens.weight", "encoder.embed_tokens.weight"]
@@ -604,11 +604,16 @@ class PLBartModel(PLBartPreTrainedModel):
                 return_dict=return_dict,
             )
 
-            # print('encoder_outputs_1', encoder_outputs_1)
+            if(encoder_outputs_1.attentions or encoder_outputs_2.attentions):
+               raise ValueError("attentions is defined")
 
+            encoder_outputs_hidden_states = None
+            if(encoder_outputs_1.hidden_states or encoder_outputs_1.hidden_states):
+                encoder_outputs_hidden_states = tuple(map(lambda x:torch.cat((encoder_outputs_1.hidden_states[x], encoder_outputs_2.hidden_states[x]), dim=1), 
+                                                             list(range(len(encoder_outputs_1.hidden_states)))))
             encoder_outputs = BaseModelOutput(
                 last_hidden_state = torch.cat((encoder_outputs_1['last_hidden_state'], encoder_outputs_2['last_hidden_state']), dim=1),
-                hidden_states = None,
+                hidden_states = encoder_outputs_hidden_states,
                 attentions =  None,
             )
 
@@ -651,6 +656,172 @@ class PLBartModel(PLBartPreTrainedModel):
             encoder_attentions=encoder_outputs.attentions,
         )
         
+# @add_start_docstrings("The bare PLBART Model outputting raw hidden-states without any specific head on top.",PLBART_START_DOCSTRING)
+class PLBartModel(PLBartPreTrainedModel):
+    _keys_to_ignore_on_load_missing = ["decoder.embed_tokens.weight", "encoder.embed_tokens.weight"]
+
+    def __init__(self, config: PLBartConfig):
+        super().__init__(config)
+
+        padding_idx, vocab_size = config.pad_token_id, config.vocab_size
+        self.shared = nn.Embedding(vocab_size, config.d_model, padding_idx)
+
+        self.encoder_1 = PLBartEncoder(config, self.shared)
+        self.encoder_2 = PLBartEncoder(config, self.shared)
+
+        self.decoder = PLBartDecoder(config, self.shared)
+
+        # Initialize weights and apply final processing
+        self.post_init()
+
+    def get_input_embeddings(self):
+        return self.shared
+
+    def set_input_embeddings(self, value):
+        self.shared = value
+        self.encoder_1.embed_tokens = self.shared
+        self.encoder_2.embed_tokens = self.shared
+        self.decoder.embed_tokens = self.shared
+
+    def get_encoder_1(self):
+        return self.encoder_1
+    def get_encoder_2(self):
+        return self.encoder_2
+
+    # def get_encoder(self):
+    #     return self.encoder_1
+
+    # def get_decoder(self):
+    #     return self.decoder
+
+    # @add_start_docstrings_to_model_forward(PLBART_INPUTS_DOCSTRING)
+    # @add_code_sample_docstrings(checkpoint=_CHECKPOINT_FOR_DOC, output_type=Seq2SeqModelOutput, config_class=_CONFIG_FOR_DOC)
+    def forward(
+        self,
+        input_ids: Optional[torch.LongTensor] = None,
+        attention_mask: Optional[torch.LongTensor] = None,
+        decoder_input_ids: Optional[torch.LongTensor] = None,
+        decoder_attention_mask: Optional[torch.Tensor] = None,
+        head_mask: Optional[torch.Tensor] = None,
+        decoder_head_mask: Optional[torch.LongTensor] = None,
+        cross_attn_head_mask: Optional[torch.Tensor] = None,
+        encoder_outputs: Optional[List[torch.FloatTensor]] = None,
+        past_key_values: Optional[List[torch.FloatTensor]] = None,
+        inputs_embeds: Optional[torch.FloatTensor] = None,
+        decoder_inputs_embeds=None,
+        use_cache: Optional[bool] = None,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+    ) -> Union[Tuple[torch.Tensor], Seq2SeqModelOutput]:
+
+
+        input_ids_1 = None
+        input_ids_2 = None
+        if(input_ids is not None):
+            input_ids_1 =  torch.stack((list(map(lambda x:x[:input_ids.shape[1]//2] , input_ids))), dim=0)
+            input_ids_2 =  torch.stack((list(map(lambda x:x[input_ids.shape[1]//2:] , input_ids))), dim=0)
+
+        attention_mask_1 = None
+        attention_mask_2 = None
+        if(attention_mask is not None):
+            attention_mask_1 =  torch.stack((list(map(lambda x:x[:attention_mask.shape[1]//2] , attention_mask))), dim=0)
+            attention_mask_2 =  torch.stack((list(map(lambda x:x[attention_mask.shape[1]//2:] , attention_mask))), dim=0)
+
+        encoder_outputs_1 = None
+        encoder_outputs_2 = None
+        if(encoder_outputs is not None):
+            encoder_outputs_1 = copy.deepcopy(encoder_outputs)
+            encoder_outputs_2 = copy.deepcopy(encoder_outputs)
+            encoder_outputs_1['last_hidden_state'] = torch.stack((list(map(lambda x:x[:encoder_outputs[0].shape[1]//2] , encoder_outputs[0]))), dim=0)
+            encoder_outputs_2['last_hidden_state'] = torch.stack((list(map(lambda x:x[encoder_outputs[0].shape[1]//2:] , encoder_outputs[0]))), dim=0)
+
+
+
+        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
+        output_hidden_states = (output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states)
+        use_cache = use_cache if use_cache is not None else self.config.use_cache
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        # different to other models, PLBart automatically creates decoder_input_ids from
+        # input_ids if no decoder_input_ids are provided
+        if decoder_input_ids is None and decoder_inputs_embeds is None:
+            decoder_input_ids = shift_tokens_right(input_ids, self.config.pad_token_id)
+
+
+        # print('encoder_outputs',encoder_outputs)
+        if encoder_outputs_1 is None and encoder_outputs_2 is None:
+            encoder_outputs_1 = self.encoder_1(
+                input_ids=input_ids_1,
+                attention_mask=attention_mask_1,
+                head_mask=head_mask,
+                inputs_embeds=inputs_embeds,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+            )
+
+            encoder_outputs_2 = self.encoder_2(
+                input_ids=input_ids_2,
+                attention_mask=attention_mask_2,
+                head_mask=head_mask,
+                inputs_embeds=inputs_embeds,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+            )
+
+            if(encoder_outputs_1.attentions or encoder_outputs_2.attentions):
+               raise ValueError("attentions is defined")
+
+            encoder_outputs_hidden_states = None
+            if(encoder_outputs_1.hidden_states or encoder_outputs_1.hidden_states):
+                encoder_outputs_hidden_states = tuple(map(lambda x:torch.cat((encoder_outputs_1.hidden_states[x], encoder_outputs_2.hidden_states[x]), dim=1), 
+                                                             list(range(len(encoder_outputs_1.hidden_states)))))
+            encoder_outputs = BaseModelOutput(
+                last_hidden_state = torch.cat((encoder_outputs_1['last_hidden_state'], encoder_outputs_2['last_hidden_state']), dim=1),
+                hidden_states = encoder_outputs_hidden_states,
+                attentions =  None,
+            )
+
+
+        # If the user passed a tuple for encoder_outputs, we wrap it in a BaseModelOutput when return_dict=True
+        elif return_dict and not isinstance(encoder_outputs, BaseModelOutput):
+            encoder_outputs = BaseModelOutput(
+                last_hidden_state=encoder_outputs[0],
+                hidden_states=encoder_outputs[1] if len(encoder_outputs) > 1 else None,
+                attentions=encoder_outputs[2] if len(encoder_outputs) > 2 else None,
+            )
+        
+        # decoder outputs consists of (dec_features, past_key_value, dec_hidden, dec_attn)
+        decoder_outputs = self.decoder(
+            input_ids=decoder_input_ids,
+            attention_mask=decoder_attention_mask,
+            encoder_hidden_states=encoder_outputs[0],
+            encoder_attention_mask=attention_mask,
+            head_mask=decoder_head_mask,
+            cross_attn_head_mask=cross_attn_head_mask,
+            past_key_values=past_key_values,
+            inputs_embeds=decoder_inputs_embeds,
+            use_cache=use_cache,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
+
+        if not return_dict:
+            return decoder_outputs + encoder_outputs
+
+        return Seq2SeqModelOutput(
+            last_hidden_state=decoder_outputs.last_hidden_state,
+            past_key_values=decoder_outputs.past_key_values,
+            decoder_hidden_states=decoder_outputs.hidden_states,
+            decoder_attentions=decoder_outputs.attentions,
+            cross_attentions=decoder_outputs.cross_attentions,
+            encoder_last_hidden_state=encoder_outputs.last_hidden_state,
+            encoder_hidden_states=encoder_outputs.hidden_states,
+            encoder_attentions=encoder_outputs.attentions,
+        )
         
 # @add_start_docstrings("The PLBART Model with a language modeling head. Can be used for code-to-text, text-to-code and code-to-code.",PLBART_START_DOCSTRING)
 class PLBartForMultiSourceConditionalGeneration(PLBartPreTrainedModel):
@@ -720,10 +891,16 @@ class PLBartForMultiSourceConditionalGeneration(PLBartPreTrainedModel):
         encoder_outputs_1 = self.model.get_encoder_1()(**encoder_kwargs_1)
         encoder_outputs_2 = self.model.get_encoder_2()(**encoder_kwargs_2)
 
+        if(encoder_outputs_1.attentions or encoder_outputs_2.attentions):
+            raise ValueError("attentions is defined")
+
+
         encoder_outputs_last_hidden_state = torch.cat((encoder_outputs_1[0], encoder_outputs_2[0]), dim=1)
         encoder_outputs = copy.deepcopy(encoder_outputs_2)
         encoder_outputs['last_hidden_state'] = encoder_outputs_last_hidden_state
-
+        if(encoder_outputs_1.hidden_states):
+            encoder_outputs['hidden_states'] = tuple(map(lambda x:torch.cat((encoder_outputs_1.hidden_states[x], encoder_outputs_2.hidden_states[x]), dim=1), 
+                                               list(range(len(encoder_outputs_1.hidden_states)))))
         return encoder_outputs
 
 
@@ -885,3 +1062,4 @@ class PLBartForMultiSourceConditionalGeneration(PLBartPreTrainedModel):
         model_kwargs["encoder_outputs"]: ModelOutput = self.get_encoder_output(encoder_kwargs)
 
         return model_kwargs
+    
