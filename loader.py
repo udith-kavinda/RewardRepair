@@ -46,8 +46,8 @@ class GeneratorDatasetForMultiSource(Dataset):
         self.data = dataframe
         self.source_len = source_len
         self.summ_len = summ_len
-        self.text_data_1 = self.data.buggy
-        self.text_data_2 = self.data.additional_info
+        self.text_data_2 = self.data.buggy
+        self.text_data_1 = self.data.additional_info
         self.labels = self.data.patch
         self.bugid = self.data.bugid
         self.bug = self.data.bug
